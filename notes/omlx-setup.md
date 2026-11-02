@@ -14,15 +14,15 @@ Instead of relying solely on the hosted API for every request, oMLX acts as a mi
 
 ## ⚙️ 2. Setup and Configuration
 
-The core of the oMLX system is the **MCP Server** (Model Communication Protocol Server), which acts as the local endpoint for the Focused Executor.
+The oMLX bridge is a **Model Context Protocol (MCP)** server that communicates with the MCP client over standard input and output (stdio). It forwards tool requests to a separate local model's HTTP API; the MCP server itself does not open an HTTP listening endpoint.
 
 ### 2.1. The oMLX MCP Server
 
-The local server is implemented via [tools/omlx_mcp_server.cjs](file:///Users/brucemcpherson/Documents/repos/gas-fakes/tools/omlx_mcp_server.cjs). This server listens for requests from the hosted LLM (Gemini) and routes them to the locally running model instance.
+The local server is implemented in [tools/omlx_mcp_server.cjs](../tools/omlx_mcp_server.cjs). The MCP client starts this Node.js process and exchanges newline-delimited JSON-RPC messages over stdio. The process then forwards `query_local_model` calls to the separately running local model API configured by `AGY_CUSTOM_BASE_URL`.
 
 **Key Functionality:**
-*   **Listening Endpoint:** Provides a local HTTP endpoint that the hosted LLM can call via its tool-use mechanism.
-*   **Model Interface:** Manages the interaction with the local model (e.g., running inference on a local GPU/CPU).
+*   **MCP Transport:** Reads MCP requests on stdin and writes responses on stdout. No HTTP server or listening port is created by this bridge.
+*   **Model Interface:** Sends HTTP requests to the separate local model at `AGY_CUSTOM_BASE_URL`, appending `/chat/completions`.
 *   **Request Handling:** Parses the structured query sent by the Strategic Planner and executes the local model inference.
 
 ### 2.2. Configuration Methods
@@ -34,29 +34,29 @@ You can set configuration parameters directly in your shell environment:
 
 | Variable | Description | Example |
 | :--- | :--- | :--- |
-| `AGY_CUSTOM_BASE_URL` | The base URL for the local oMLX MCP Server. | `http://localhost:8080/omlx` |
+| `AGY_CUSTOM_BASE_URL` | Base URL of the local model's OpenAI-compatible HTTP API, **not** the MCP server. | `http://localhost:8000/v1` |
 | `AGY_DEFAULT_MODEL` | The name or identifier of the local model to be used for execution. | `llama3-8b-quantized` |
 | `AGY_CUSTOM_API_KEY` | An optional API key for authentication to the local server. | `local-secret-key` |
 
 #### Local Environment File
-For persistent or complex setups, use [tools/omlx.env.example](file:///Users/brucemcpherson/Documents/repos/gas-fakes/tools/omlx.env.example) and populate it with your specific configuration.
+For persistent or complex setups, use [tools/omlx.env.example](../tools/omlx.env.example) and populate it with your specific configuration.
 
 ```bash
 # tools/omlx.env
-AGY_CUSTOM_BASE_URL="http://127.0.0.1:8080/omlx"
+AGY_CUSTOM_BASE_URL="http://127.0.0.1:8000/v1"
 AGY_DEFAULT_MODEL="mistral-7b-local"
 AGY_CUSTOM_API_KEY="my-secure-local-key"
 ```
 
 ### 2.3. Integrating with External Tools (Cursor/Gemini)
 
-To enable the hosted LLM (e.g., Gemini) to recognize and utilize the local model, you must configure the external tool's MCP settings to point to the local server path.
+To expose the local model to a compatible MCP client (for example, a desktop or IDE tool host), configure the client to launch the local Node.js MCP server via stdio. Set `AGY_CUSTOM_BASE_URL` for the **model API**, not as the MCP server address. The MCP client must have access to the process on the machine where it runs.
 
 **Configuration Steps:**
 
-1.  **Start the MCP Server:** Ensure `tools/omlx_mcp_server.cjs` is running and accessible.
-2.  **Update Tool Settings:** In your IDE or LLM client (e.g., Cursor/Gemini settings), locate the configuration for custom tools or local endpoints.
-3.  **Set Endpoint:** Configure the tool to point to the `AGY_CUSTOM_BASE_URL` defined in your environment.
+1.  **Start the Local Model API:** Ensure the API specified by `AGY_CUSTOM_BASE_URL` is running and serves `POST /chat/completions`.
+2.  **Configure the MCP Client:** Register a **stdio** server whose command is `node` and whose argument is the absolute path to `tools/omlx_mcp_server.cjs`. The exact configuration keys depend on the client.
+3.  **Set Environment Variables:** Pass `AGY_CUSTOM_BASE_URL`, `AGY_DEFAULT_MODEL`, and any model API credentials to that subprocess. These configure the upstream model connection, not an MCP HTTP endpoint.
 
 This step allows the hosted LLM to treat the local server as a callable function, enabling the delegation workflow.
 
