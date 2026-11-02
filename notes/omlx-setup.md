@@ -36,7 +36,7 @@ You can set configuration parameters directly in your shell environment:
 | :--- | :--- | :--- |
 | `AGY_CUSTOM_BASE_URL` | Base URL of the local model's OpenAI-compatible HTTP API, **not** the MCP server. | `http://localhost:8000/v1` |
 | `AGY_DEFAULT_MODEL` | The name or identifier of the local model to be used for execution. | `llama3-8b-quantized` |
-| `AGY_CUSTOM_API_KEY` | An optional API key for authentication to the local server. | `local-secret-key` |
+| `AGY_CUSTOM_API_KEY` | Optional bearer key sent to the local model's HTTP API. | `local-secret-key` |
 
 #### Local Environment File
 For persistent or complex setups, use [tools/omlx.env.example](../tools/omlx.env.example) and populate it with your specific configuration.
